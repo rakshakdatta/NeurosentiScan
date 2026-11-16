@@ -1,0 +1,59 @@
+{
+  "dataset_sha256": "a51d6be460818bd6dd39ead707d7f2228c0ae8c4e88f8b79957e8853a0d5fdfa",
+  "protocol": "stratified row-level",
+  "group_column": null,
+  "seed": 42,
+  "rows": 2132,
+  "features": 2548,
+  "epochs_limit": 15,
+  "split_sizes": {
+    "train": 1278,
+    "validation": 427,
+    "test": 427
+  },
+  "models": [
+    "dummy",
+    "logistic",
+    "svm",
+    "knn",
+    "naive_bayes",
+    "tree",
+    "random_forest",
+    "random_forest_100",
+    "xgboost",
+    "cnn",
+    "lstm",
+    "cnn_lstm",
+    "bilstm",
+    "eegnet_style"
+  ],
+  "python": "3.12.10",
+  "platform": "Windows-11-10.0.26200-SP0",
+  "versions": {
+    "numpy": "1.26.4",
+    "pandas": "2.2.3",
+    "scikit-learn": "1.6.1",
+    "scipy": "1.15.3",
+    "joblib": "1.6.0",
+    "matplotlib": "3.10.3",
+    "tensorflow": "2.19.1",
+    "keras": "3.15.1",
+    "xgboost": "3.0.2",
+    "shap": "0.48.0"
+  },
+  "ensemble_members": [
+    "logistic",
+    "svm",
+    "knn",
+    "naive_bayes",
+    "tree",
+    "random_forest",
+    "random_forest_100",
+    "xgboost",
+    "cnn",
+    "lstm",
+    "cnn_lstm",
+    "bilstm",
+    "eegnet_style"
+  ]
+}

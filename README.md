@@ -1,69 +1,71 @@
 # NeuroSentiScan
 
-An offline Python research project that benchmarks classical machine learning and deep learning for three-class EEG classification. It includes feature extraction, training, aggregate evaluation, and interpretation scripts.
+A reproducible benchmark for three-class EEG emotion classification. The project compares scikit-learn, XGBoost, and TensorFlow/Keras models on the same held-out sample rows and uses SHAP to explain a fitted EEG Random Forest.
 
-![Accuracy comparison for the classical EEG classifiers](graph/ml_model_accuracy_comparison_eval.png)
+## Models and experiment design
 
-## Pipeline
+| Family | Models |
+| --- | --- |
+| Baseline | Most-frequent class |
+| Classical machine learning | Logistic Regression, SVM, KNN, Gaussian Naive Bayes, Decision Tree, Random Forest, XGBoost |
+| Feature-selection ablation | Random Forest with the top 100 features selected using the training labels |
+| Deep learning | 1D CNN, LSTM, CNN-LSTM, BiLSTM, and an EEGNet-inspired convolutional model |
+| Ensemble | Majority vote across the evaluated classifiers, excluding the baseline |
 
-```mermaid
-flowchart LR
-    a["EEG recordings or feature CSV"] --> b["Preprocessing and feature extraction"]
-    b --> c["Classical ML"]
-    b --> d["Reshaped features for Keras models"]
-    c --> e["Metrics and interpretation"]
-    d --> e
-```
+The CSV is split once with seed 42. Exact duplicate feature rows stay in one partition. Scaling and any supervised feature selection are fitted on training rows. Neural early stopping uses validation rows. The test partition is shared by every model, and a single prediction table preserves row identity. The ensemble uses a fixed class-order tie break. The benchmark reports accuracy, macro F1, per-class metrics, and exploratory paired McNemar comparisons with Holm adjustment.
 
-- **Data.** The local feature table contains 2,132 rows and 2,548 input columns. Its stored labels are `NEGATIVE`, `NEUTRAL`, and `POSITIVE`. The accompanying project report discusses the experiments in a stress-classification context.
-- **Modeling.** scikit-learn scripts benchmark SVM, Random Forest, KNN, Logistic Regression, Naive Bayes, and Decision Tree. TensorFlow/Keras scripts explore CNN, recurrent, hybrid, and EEGNet-style architectures.
-- **Evaluation.** The repository includes classification reports, model comparison plots, and a SHAP example. Scripts also explore local LIME explanations, PCA and t-SNE, and majority voting.
+The neural models reshape the 2,548 engineered features into a 49 × 52 grid. The grid is a model input convention. Its axes do not represent verified EEG channels or time steps.
 
-## Saved results
+## Benchmark results
 
-| Model | Accuracy | Macro F1 | Evaluation rows |
-| --- | ---: | ---: | ---: |
-| [Random Forest](outputs/RandomForest_report.csv) | 97.97% | 0.9797 | 640 |
-| [1D CNN](outputs/CNN_1D_report.csv) | 99.06% | 0.9906 | 640 |
+The checked-in run used 1,278 training rows, 427 validation rows, and 427 test rows. All scores below are from the same stratified **row-level** test partition.
 
-These numbers come from saved experiment reports. The current training scripts split individual rows, and the deep-learning scripts fit their scaler before splitting. A stronger comparison would split by subject and fit preprocessing on training data only. The scores describe this experiment and do not establish performance on unseen people or clinical usefulness.
+| Model | Accuracy | Macro F1 |
+| --- | ---: | ---: |
+| XGBoost | 99.30% | 0.9930 |
+| Random Forest | 98.36% | 0.9836 |
+| Majority vote | 97.42% | 0.9741 |
+| Logistic Regression | 96.02% | 0.9600 |
+| BiLSTM | 96.02% | 0.9600 |
+| EEGNet-inspired CNN | 96.02% | 0.9600 |
+| Random Forest (top 100) | 96.02% | 0.9599 |
+| Decision Tree | 95.78% | 0.9577 |
+| CNN-LSTM | 95.55% | 0.9554 |
+| LSTM | 95.08% | 0.9504 |
+| SVM | 94.38% | 0.9433 |
+| 1D CNN | 93.68% | 0.9366 |
+| KNN | 93.44% | 0.9336 |
+| Gaussian Naive Bayes | 43.09% | 0.3255 |
+| Most-frequent baseline | 33.49% | 0.1673 |
 
-![Example SHAP summary for the Random Forest experiment](explainability/shap_rf_summary.png)
+![Macro F1 comparison across every benchmark model](benchmark-results/benchmark.png)
 
-## Run locally
+![Top SHAP attributions for the fitted EEG Random Forest](benchmark-results/shap_eeg.png)
 
-Use Python 3.11 and run commands from the repository root. The dependency file pins the original experiment environment.
+The SHAP figure summarizes a deterministic sample of 64 test rows from the fitted full-feature Random Forest. The bars show model sensitivity to input features in this experiment.
+
+[Run configuration](benchmark-results/run.json) · [Split manifest](benchmark-results/split.csv) · [Per-class reports](benchmark-results/reports.json) · [Paired comparisons](benchmark-results/paired_comparisons.csv)
+
+## Dataset and attribution
+
+The local CSV used for the benchmark matches the Kaggle download of Jordan J. Bird’s [EEG Brainwave Dataset: Feeling Emotions](https://www.kaggle.com/datasets/birdy654/eeg-brainwave-dataset-feeling-emotions/data) byte for byte. It contains 2,132 rows and 2,548 features, with 708 negative, 716 neutral, and 708 positive labels. Feature extraction is credited to the original authors.
+
+- **Research citation.** Jordan J. Bird, Anikó Ekárt, Christopher D. Buckingham, and Diego R. Faria, *Mental Emotional Sentiment Classification with an EEG-based Brain-machine Interface*, DISP 2019. [Paper](https://jordanjamesbird.com/publications/Mental-Emotional-Sentiment-Classification-with-an-EEG-based-Brain-machine-Interface.pdf)
+- **Data rights.** Kaggle lists the data files as © Original Authors. Download the dataset from the source and follow its terms. This repository publishes aggregate results and the code to reproduce them.
+- **Evaluation limits.** The distributed CSV contains no verified participant or session IDs. Row-level partitions can contain recordings from shared participants or sessions. These scores provide no estimate of performance on new people. Paired tests are descriptive for this split because dependence between rows cannot be ruled out. With a dataset that has reliable participant IDs and enough groups, pass `--group-column participant_id` to keep participants in separate partitions.
+
+## Reproduce the benchmark
+
+Use Python 3.12 in a virtual environment and run from the repository root. On Windows, create the environment under a short path if TensorFlow installation hits a filename-length error. Download `emotions.csv` from the Kaggle dataset page.
 
 ```bash
-python -m venv .venv
+python -m pip install -r requirements-benchmark.txt
+python scripts/benchmark.py path/to/emotions.csv --output runs/eeg --shap --save-models
+python -m unittest discover -s tests
 ```
 
-Activate the environment before installing. In Windows PowerShell, run `& .\.venv\Scripts\Activate.ps1`. In Bash, run `source .venv/bin/activate`.
+The output includes the split manifest, data checksum, dependency versions, per-row predictions, per-class reports, paired comparisons, and figures. With `--save-models`, the CLI saves the fitted estimators and the neural scaler under the run directory. The class order is `NEGATIVE`, `NEUTRAL`, `POSITIVE`. For a smaller run, pass `--models dummy random_forest cnn --epochs 2`.
 
-```bash
-python -m pip install -r requirements.txt
-```
-
-To regenerate the comparison plots from the included aggregate CSV reports:
-
-```bash
-python scripts/plot_results.py
-```
-
-To retrain, supply a dataset you are authorized to use at `data/datasets/eeg_data.csv`. The training scripts expect 2,548 numeric feature columns and a `label` column using the labels above.
-
-```bash
-python scripts/load_csv_data.py
-python scripts/train_ml.py
-python scripts/train_dl.py
-```
-
-This repository contains scripts, notebooks with cleared outputs, and aggregate evaluation artifacts. Raw EEG recordings, the feature dataset, per-sample predictions, trained weights, and the local research PDF are kept outside the repository.
-
-## Repository guide
-
-- [scripts/](scripts/) contains data preparation, training, evaluation, and interpretation.
-- [notebooks/](notebooks/) contains feature engineering and exploratory experiments.
-- [outputs/](outputs/) and [graph/](graph/) contain selected aggregate reports and figures.
+GitHub Actions runs the tests and exercises a smaller pipeline on synthetic data. The previous notebooks, MATLAB experiments, and historical reports document earlier exploration. Those workflows use different data and splits. The older SHAP demonstration uses Iris, and the historical scores are superseded for this portfolio benchmark.
 
 Project materials are for academic and non-commercial use, as documented in the original project.

@@ -1,0 +1,16 @@
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.ipynb_checkpoints/
+.env
+.env.*
+data/
+models/
+*.mat
+*.npy
+*.h5
+*.joblib
+*.pkl
+outputs/*_predictions.csv
+*.html

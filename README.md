@@ -12,7 +12,14 @@ A reproducible benchmark for three-class EEG emotion classification. The project
 | Deep learning | 1D CNN, LSTM, CNN-LSTM, BiLSTM, and an EEGNet-inspired convolutional model |
 | Ensemble | Majority vote across the evaluated classifiers, excluding the baseline |
 
-The CSV is split once with seed 42. Exact duplicate feature rows stay in one partition. Scaling and any supervised feature selection are fitted on training rows. Neural early stopping uses validation rows. The test partition is shared by every model, and a single prediction table preserves row identity. The ensemble uses a fixed class-order tie break. The benchmark reports accuracy, macro F1, per-class metrics, and exploratory paired McNemar comparisons with Holm adjustment.
+### Reproducible evaluation
+
+1. **Identify the input and split it once.** The benchmark records the input CSV's SHA-256 checksum, software versions, and random seed (42). The checked-in run uses a stratified 60/20/20 split by row. The splitter keeps exact duplicate feature rows together if they occur. The split manifest records each original row index and its partition, so a rerun can be checked against the published assignment.
+2. **Fit on training rows.** Models, scalers, and supervised feature selectors learn from the training rows. The same fitted transformations are applied to validation and test data. This prevents those rows from influencing scaling or feature selection.
+3. **Use validation for early stopping.** Neural models use validation loss to decide when to stop and restore their best weights. The test rows are reserved for scoring the fitted models.
+4. **Compare predictions for the same samples.** Every model predicts the same test rows. The run writes one prediction table keyed by row index. The ensemble votes across those aligned predictions with a fixed class-order tie break. Paired comparisons use the same rows, with McNemar's test and Holm adjustment.
+
+Accuracy is the fraction of correct predictions. Macro F1 averages the F1 scores of the three classes with equal weight. Reproducibility here covers the data, split, training procedure, and metrics. Exact neural scores can vary by software or hardware environment.
 
 The neural models reshape the 2,548 engineered features into a 49 × 52 grid. The grid is a model input convention. Its axes do not represent verified EEG channels or time steps.
 
@@ -40,11 +47,40 @@ The checked-in run used 1,278 training rows, 427 validation rows, and 427 test r
 
 ![Macro F1 comparison across every benchmark model](benchmark-results/benchmark.png)
 
+[Run configuration](benchmark-results/run.json) · [Split manifest](benchmark-results/split.csv) · [Per-class reports](benchmark-results/reports.json) · [Paired comparisons](benchmark-results/paired_comparisons.csv)
+
+## Explainable AI
+
+| Method | What it explains | Project output |
+| --- | --- | --- |
+| **SHAP** | Which EEG features contributed most to the fitted Random Forest's class predictions across a sample of test rows | Current benchmark. [SHAP feature rankings](benchmark-results/shap_importance.csv) |
+| **LIME** | Which features locally supported or opposed a single prediction, using an approximation around that example | Earlier EEG experiments with saved SVM, Random Forest, KNN, Naive Bayes, Logistic Regression, and Decision Tree models. [LIME script](scripts/explainability.py) |
+| **Model-native importance** | How fitted models ranked features using tree importance or absolute linear coefficients | Earlier EEG dashboard. The two measures have different meanings and are best read within each model. [Dashboard script](scripts/feature_importance_dashboard.py) |
+
+### SHAP for the current EEG benchmark
+
 ![Top SHAP attributions for the fitted EEG Random Forest](benchmark-results/shap_eeg.png)
 
-The SHAP figure summarizes a deterministic sample of 64 test rows from the fitted full-feature Random Forest. The bars show model sensitivity to input features in this experiment.
+The benchmark fits the full-feature Random Forest on the training partition, then runs TreeSHAP on a fixed sample of 64 test rows. The figure averages the **absolute** attribution across rows and classes. A longer bar means a larger typical contribution to the model's output. To answer whether a feature pushed a particular prediction toward a class, inspect the signed values for that row and class. These attributions describe the fitted model.
 
-[Run configuration](benchmark-results/run.json) · [Split manifest](benchmark-results/split.csv) · [Per-class reports](benchmark-results/reports.json) · [Paired comparisons](benchmark-results/paired_comparisons.csv)
+### LIME and the earlier explanation outputs
+
+The earlier LIME script loads saved EEG models and their scalers, explains individual predictions, and exports HTML and PNG examples. Those explanations used the earlier workflow and were not regenerated on the current held-out split. The original Iris SHAP demo also remains available as an exploratory script. [Iris SHAP demo](scripts/explainability_SHAP.py)
+
+![Historical LIME bar chart showing positive and negative feature contributions for the neutral class](docs/report-figures/lime-svm.png)
+
+*Original report, Figure 6. This SVM example explains one prediction for the neutral class. Positive and negative bars show how features support or oppose that class in the local approximation.*
+
+### Exploratory EEG feature visualization
+
+<details>
+<summary>PCA view from the original report</summary>
+
+![Two-dimensional PCA scatterplot of EEG features colored by class](docs/report-figures/eeg-pca.png)
+
+*Original report, Figure 7 (PCA panel). The scatterplot describes the feature distribution. The benchmark table above reports held-out model performance.*
+
+</details>
 
 ## Dataset and attribution
 
@@ -56,7 +92,7 @@ The local CSV used for the benchmark matches the Kaggle download of Jordan J. Bi
 
 ## Reproduce the benchmark
 
-Use Python 3.12 in a virtual environment and run from the repository root. On Windows, create the environment under a short path if TensorFlow installation hits a filename-length error. Download `emotions.csv` from the Kaggle dataset page.
+Use Python 3.12 in a virtual environment and run from the repository root. On Windows, create the environment under a short path if TensorFlow installation hits a filename-length error. Download `emotions.csv` from the Kaggle dataset page. In the original local project, use `data/datasets/eeg_data.csv` as the input path instead.
 
 ```bash
 python -m pip install -r requirements-benchmark.txt
@@ -66,6 +102,6 @@ python -m unittest discover -s tests
 
 The output includes the split manifest, data checksum, dependency versions, per-row predictions, per-class reports, paired comparisons, and figures. With `--save-models`, the CLI saves the fitted estimators and the neural scaler under the run directory. The class order is `NEGATIVE`, `NEUTRAL`, `POSITIVE`. For a smaller run, pass `--models dummy random_forest cnn --epochs 2`.
 
-GitHub Actions runs the tests and exercises a smaller pipeline on synthetic data. The previous notebooks, MATLAB experiments, and historical reports document earlier exploration. Those workflows use different data and splits. The older SHAP demonstration uses Iris, and the historical scores are superseded for this portfolio benchmark.
+GitHub Actions runs the tests and exercises a smaller pipeline on synthetic data. The previous notebooks, MATLAB experiments, and historical reports document earlier exploration. Those workflows use different data and splits. The historical scores are superseded by the shared-split benchmark above.
 
 Project materials are for academic and non-commercial use, as documented in the original project.
